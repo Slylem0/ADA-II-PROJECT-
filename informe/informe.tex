@@ -1,0 +1,857 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage[spanish,es-nodecimaldot,es-noshorthands,es-tabla]{babel}
+\usepackage[margin=2cm,columnsep=0.8cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{pgfplots}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{hyperref}
+
+\pgfplotsset{compat=1.18}
+\captionsetup{font=small,labelfont=bf}
+\setlist{itemsep=2pt,topsep=3pt}
+\hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=black}
+
+\newtheorem{definicion}{Definición}
+\newtheorem{lema}{Lema}
+\newtheorem{teorema}{Teorema}
+\newtheorem{proposicion}{Proposición}
+\newtheorem{observacion}{Observación}
+
+\floatname{algorithm}{Algoritmo}
+\algrenewcommand\algorithmicfor{\textbf{para}}
+\algrenewcommand\algorithmicdo{\textbf{hacer}}
+\algrenewcommand\algorithmicwhile{\textbf{mientras}}
+\algrenewcommand\algorithmicif{\textbf{si}}
+\algrenewcommand\algorithmicthen{\textbf{entonces}}
+\algrenewcommand\algorithmicreturn{\textbf{retornar}}
+\algrenewcommand\algorithmicrequire{\textbf{Entrada:}}
+\algrenewcommand\algorithmicensure{\textbf{Salida:}}
+
+\newcommand{\costo}{\operatorname{costo}}
+\newcommand{\N}{\mathbb{N}}
+
+\begin{document}
+
+\twocolumn[
+\begin{center}
+  {\includegraphics[height=2.4cm]{logo-univalle.png}}\par\vspace{0.4cm}
+  {\LARGE Primer proyecto -- ADA II}\par\vspace{0.15cm}
+  {\Large Programación de tareas con penalización por retraso}\par\vspace{0.1cm}
+  {\large Programación dinámica y algoritmos voraces para $1\,\|\,\sum w_jT_j$}\par\vspace{0.4cm}
+  {\large INTEGRANTE 1 \quad INTEGRANTE 2 \quad INTEGRANTE 3 \quad INTEGRANTE 4}\par\vspace{0.15cm}
+  Análisis y Diseño de Algoritmos II \quad·\quad Universidad del Valle \quad·\quad 2026-2\par
+  \vspace{0.6cm}
+\end{center}
+]
+
+\begin{abstract}
+Se estudia el problema de ordenar $n$ tareas en una sola máquina para minimizar
+la suma ponderada de sus retrasos, $\sum w_jT_j$. Se demuestra que su versión de
+decisión pertenece a NP y se discute su NP-dificultad en sentido fuerte. Se
+propone una solución exacta por programación dinámica sobre subconjuntos, de
+complejidad $O(2^n n)$, y tres algoritmos voraces (EDD, WSPT y WMDD) de
+complejidad $O(n\log n)$ u $O(n^2)$. Ambos enfoques se implementan en C++ y se
+comparan sobre 315 instancias aleatorias con $n$ entre 4 y 24. La programación
+dinámica coincide con la fuerza bruta en todos los casos verificables y su
+tiempo se duplica con cada tarea adicional; el voraz WMDD obtiene brechas
+medianas de 0.2\,\% a 1.2\,\% cuando las fechas límite son exigentes, pero
+ningún voraz garantiza el óptimo.
+\end{abstract}
+
+%=======================================================================
+\section{Análisis teórico del problema}
+%=======================================================================
+
+\subsection{Descripción informal}
+
+Una sola máquina (o persona) debe ejecutar $n$ tareas, una a la vez y sin
+interrumpirlas. Cada tarea tarda un tiempo, tiene una fecha en la que debería
+estar terminada y una penalización por cada unidad de tiempo que se entregue
+tarde. La pregunta es en qué orden ejecutarlas para que la penalización total
+sea mínima.
+
+\subsection{Modelo formal}
+
+\begin{definicion}[Instancia]
+Una instancia es un conjunto de tareas $J=\{1,\dots,n\}$ donde cada tarea $j$
+tiene una \emph{duración} $p_j\in\N_{>0}$, una \emph{fecha límite}
+$d_j\in\N$ y un \emph{peso} o penalización por unidad de retraso
+$w_j\in\N$. Todas las tareas están disponibles en el instante $0$.
+\end{definicion}
+
+\begin{definicion}[Programación y costo]
+Una programación es una permutación $\pi=(\pi_1,\dots,\pi_n)$ de $J$. La tarea
+en la posición $k$ termina en
+\[
+C_{\pi_k} = \sum_{i=1}^{k} p_{\pi_i},
+\]
+su \emph{retraso} es $T_j=\max(0,\;C_j-d_j)$ y el costo de $\pi$ es
+\[
+\costo(\pi)=\sum_{j=1}^{n} w_j\,T_j=\sum_{j=1}^{n} w_j\max(0,\;C_j-d_j).
+\]
+\end{definicion}
+
+\paragraph{Problema de optimización.} Encontrar
+$\pi^\ast=\arg\min_{\pi\in S_n}\costo(\pi)$, donde $S_n$ es el conjunto de las
+$n!$ permutaciones. En la notación de Graham se escribe
+$1\,\|\,\sum w_jT_j$: una máquina ($1$), sin restricciones adicionales
+(campo vacío) y objetivo de retraso ponderado total.
+
+No es necesario considerar tiempos ociosos ni interrupciones: dejar la máquina
+quieta solo retrasa las tareas siguientes, y como todas están disponibles desde
+$t=0$, toda programación óptima puede tomarse sin huecos. Así, el espacio de
+soluciones es exactamente $S_n$.
+
+\paragraph{Interpretación elegida.} El enunciado habla de una ``penalización
+asociada'' al retraso. Se adoptó la lectura en la que la penalización es
+\emph{proporcional al retraso} ($w_jT_j$). La alternativa, una multa fija si la
+tarea llega tarde ($\sum w_jU_j$), es un problema distinto, más cercano a la
+mochila. Sin fechas límite el problema sería $\sum w_jC_j$, que la regla de
+Smith resuelve en tiempo polinomial (Sección~\ref{sec:wspt}); por eso las
+fechas límite son esenciales para la dificultad.
+
+\subsection{Ejemplo}\label{sec:ejemplo}
+
+Considérense tres tareas:
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+Tarea & $p_j$ & $d_j$ & $w_j$\\
+\midrule
+A & 3 & 4 & 2\\
+B & 2 & 2 & 5\\
+C & 4 & 6 & 1\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Para $\pi=(A,B,C)$: $C_A=3$, $C_B=5$, $C_C=9$; los retrasos son $0$, $3$ y
+$3$, y el costo es $2\cdot0+5\cdot3+1\cdot3=18$. La Tabla~\ref{tab:perm}
+enumera las $3!=6$ permutaciones: la óptima es $(B,A,C)$ con costo $5$.
+Poner primero la tarea más costosa de retrasar (B) reduce el costo a menos de
+un tercio.
+
+\begin{table}[h]
+\centering
+\caption{Todas las programaciones del ejemplo.}\label{tab:perm}
+\begin{tabular}{lccc}
+\toprule
+$\pi$ & $(C_j)$ en orden & $(T_j)$ en orden & costo\\
+\midrule
+$A,B,C$ & $3,5,9$ & $0,3,3$ & 18\\
+$A,C,B$ & $3,7,9$ & $0,1,7$ & 36\\
+$\mathbf{B,A,C}$ & $2,5,9$ & $0,1,3$ & $\mathbf{5}$\\
+$B,C,A$ & $2,6,9$ & $0,0,5$ & 10\\
+$C,A,B$ & $4,7,9$ & $0,3,7$ & 41\\
+$C,B,A$ & $4,6,9$ & $0,4,5$ & 30\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Pertenencia a NP}
+
+NP es una clase de \emph{problemas de decisión}, por lo que se considera la
+versión:
+
+\begin{quote}
+\textsc{RetrasoPonderado}: dada una instancia y un entero $K$, ¿existe una
+permutación $\pi$ con $\costo(\pi)\le K$?
+\end{quote}
+
+\begin{proposicion}
+\textsc{RetrasoPonderado} $\in$ NP.
+\end{proposicion}
+
+\begin{proof}
+El certificado es la permutación $\pi$, de tamaño $O(n\log n)$ bits, polinomial
+en la entrada. El verificador comprueba que $\pi$ sea una permutación de $J$
+(marcando cada índice en un arreglo, $O(n)$), recorre $\pi$ acumulando
+$C_{\pi_k}=C_{\pi_{k-1}}+p_{\pi_k}$, suma $w_j\max(0,C_j-d_j)$ y compara el
+total con $K$. Son $O(n)$ operaciones aritméticas sobre números de tamaño
+polinomial en la entrada, así que la verificación es polinomial. Si la
+respuesta es \emph{sí}, el $\pi$ correcto hace aceptar al verificador; si es
+\emph{no}, ningún $\pi$ lo hace.
+\end{proof}
+
+El problema de \emph{optimización} no está en NP en sentido estricto, porque no
+es de decisión, pero es tan difícil como la versión de decisión. Con un
+algoritmo que resuelva la decisión se encuentra el óptimo por búsqueda binaria
+sobre $K\in[0,\sum_j w_j\sum_i p_i]$, y conocido el costo óptimo se reconstruye
+la permutación fijando las posiciones una a una.
+
+\subsection{Complejidad computacional}
+
+\begin{teorema}[Lawler 1977; Lenstra, Rinnooy Kan y Brucker 1977]
+$1\,\|\,\sum w_jT_j$ es NP-difícil en sentido fuerte. En consecuencia,
+\textsc{RetrasoPonderado} es NP-completo en sentido fuerte.
+\end{teorema}
+
+La demostración original reduce \textsc{3-Partición}, que es NP-completo en
+sentido fuerte, a este problema. Que la dificultad sea \emph{fuerte} tiene una
+consecuencia concreta para el diseño: a diferencia de la mochila o de
+$1\,\|\,\sum w_jU_j$, \textbf{no existe un algoritmo pseudo-polinomial}, es
+decir, polinomial en $n$ y en la magnitud de los números, a menos que
+$\mathrm{P}=\mathrm{NP}$. Una tabla indexada por el tiempo, $O(n\sum p_j)$, no
+puede funcionar en general. Por eso la programación dinámica de la
+Sección~\ref{sec:dp} es exponencial en $n$: es lo esperable para un problema
+fuertemente NP-difícil.
+
+\paragraph{Tamaño del espacio de búsqueda.} Hay $n!$ programaciones. Por la
+fórmula de Stirling, $n!\approx\sqrt{2\pi n}\,(n/e)^n$, que crece más rápido
+que cualquier $c^n$. Para $n=20$ hay unos $2.4\times10^{18}$ órdenes; evaluar
+cada uno en $O(n)$ con $10^9$ operaciones por segundo tomaría más de 1500
+años.
+
+%=======================================================================
+\section{Solución por programación dinámica}\label{sec:dp}
+%=======================================================================
+
+\subsection{Razonamiento que lleva a la formulación}
+
+El punto de partida es la fuerza bruta, que considera los $n!$ órdenes. La
+pregunta clave es: \emph{¿qué información de un prefijo de la programación se
+necesita realmente para continuar?}
+
+Supóngase que ya se decidió qué tareas van primero, el conjunto $S$, aunque no
+su orden interno. Se observan dos hechos:
+
+\begin{enumerate}
+  \item Cualquiera sea su orden interno, las tareas de $S$ ocupan exactamente
+        el intervalo $[0,P(S)]$, con $P(S)=\sum_{j\in S}p_j$. Las tareas
+        fuera de $S$ empiezan todas después de $P(S)$, así que su costo
+        \textbf{no depende} del orden interno de $S$.
+  \item La última tarea ejecutada dentro de $S$ termina en $P(S)$, también
+        independientemente del orden de las demás.
+\end{enumerate}
+
+Por lo tanto, para el futuro solo importa \emph{qué} tareas ya se ejecutaron,
+no \emph{en qué orden}. Esto reduce la información de estado de $n!$ órdenes a
+$2^n$ subconjuntos. Es la misma idea del algoritmo de Held--Karp para el
+problema del viajante.
+
+\begin{lema}\label{lema:fin}
+En cualquier orden de las tareas de $S$ ejecutado desde $t=0$ sin huecos, la
+última tarea termina en $P(S)$.
+\end{lema}
+
+\begin{proof}
+Su tiempo de finalización es la suma de las duraciones de todas las tareas
+ejecutadas hasta ella inclusive, que son exactamente las de $S$.
+\end{proof}
+
+\subsection{Modelo matemático}
+
+\begin{definicion}[Estado]
+Para $S\subseteq J$, $f(S)$ es el costo mínimo de ejecutar \emph{exactamente}
+las tareas de $S$ al inicio de la programación, en el mejor orden posible.
+\end{definicion}
+
+\paragraph{Recurrencia.} Se elige cuál tarea $j\in S$ va de última. Por el
+Lema~\ref{lema:fin}, termina en $P(S)$, y lo anterior es un subproblema sobre
+$S\setminus\{j\}$:
+\begin{equation}\label{eq:rec}
+\boxed{
+\begin{aligned}
+f(\varnothing)&=0,\\
+f(S)&=\min_{j\in S}\Big[f(S\setminus\{j\})+w_j\max\big(0,\,P(S)-d_j\big)\Big].
+\end{aligned}}
+\end{equation}
+La respuesta es $f(J)$. Para reconstruir el orden se guarda, para cada $S$, la
+tarea $u(S)$ que alcanza el mínimo, y se retrocede desde $J$:
+$u(J)$ es la última tarea, $u(J\setminus\{u(J)\})$ la penúltima, etc.
+
+\begin{teorema}[Corrección]
+Para todo $S\subseteq J$, $f(S)$ calculado con~\eqref{eq:rec} es igual al costo
+mínimo de ordenar las tareas de $S$ desde $t=0$.
+\end{teorema}
+
+\begin{proof}
+Por inducción sobre $|S|$. Si $S=\varnothing$ el costo es $0$. Sea
+$|S|\ge1$ y llámese $\mathrm{OPT}(S)$ al costo mínimo verdadero.
+
+($\ge$) Sea $\sigma$ un orden óptimo de $S$ y $j$ su última tarea. Por el
+Lema~\ref{lema:fin}, $j$ cuesta $w_j\max(0,P(S)-d_j)$. Las demás forman un orden
+de $S\setminus\{j\}$ que empieza en $t=0$, de costo
+$\ge\mathrm{OPT}(S\setminus\{j\})=f(S\setminus\{j\})$ por hipótesis
+inductiva. Entonces $\mathrm{OPT}(S)\ge f(S\setminus\{j\})+w_j\max(0,P(S)-d_j)\ge f(S)$.
+
+($\le$) Sea $j$ la tarea que minimiza~\eqref{eq:rec}. Tomando un orden óptimo
+de $S\setminus\{j\}$, cuyo costo es $f(S\setminus\{j\})$ por hipótesis
+inductiva, y poniendo $j$ al final, se obtiene un orden de $S$ con costo
+exactamente $f(S)$. Así $\mathrm{OPT}(S)\le f(S)$.
+\end{proof}
+
+La demostración evidencia las dos propiedades que justifican la programación
+dinámica: \textbf{subestructura óptima}, porque el prefijo de un orden óptimo
+es óptimo para su conjunto, y \textbf{subproblemas superpuestos}, porque el
+mismo $f(S)$ se usa desde todos los $S\cup\{j\}$, hasta $n-|S|$ veces.
+
+\subsection{Ejemplo: tabla completa}
+
+La Tabla~\ref{tab:dp} aplica~\eqref{eq:rec} al ejemplo de la
+Sección~\ref{sec:ejemplo}. Cada candidato es
+$f(S\setminus\{j\})+w_j\max(0,P(S)-d_j)$ con $j$ como última tarea.
+
+\begin{table}[h]
+\centering
+\caption{Programación dinámica sobre el ejemplo A, B, C.}\label{tab:dp}
+\footnotesize\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcll}
+\toprule
+$S$ & $P(S)$ & candidatos ($j$: valor) & $f(S)$\\
+\midrule
+$\varnothing$ & 0 & -- & 0\\
+$\{A\}$ & 3 & A: $0+2\cdot0=0$ & 0\\
+$\{B\}$ & 2 & B: $0+5\cdot0=0$ & 0\\
+$\{C\}$ & 4 & C: $0+1\cdot0=0$ & 0\\
+$\{A,B\}$ & 5 & A: $0+2\cdot1=\mathbf{2}$;\; B: $0+5\cdot3=15$ & 2\\
+$\{A,C\}$ & 7 & A: $0+2\cdot3=6$;\; C: $0+1\cdot1=\mathbf{1}$ & 1\\
+$\{B,C\}$ & 6 & B: $0+5\cdot4=20$;\; C: $0+1\cdot0=\mathbf{0}$ & 0\\
+$\{A,B,C\}$ & 9 & A: $0+10=10$;\; B: $1+35=36$; & \\
+ & & C: $2+3=\mathbf{5}$ & 5\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Reconstrucción:
+\[
+u(\{A,B,C\})=C,\quad u(\{A,B\})=A,\quad u(\{B\})=B.
+\]
+El orden es $(B,A,C)$ con costo $5$, igual al de la Tabla~\ref{tab:perm}. Se
+evaluaron $12$ candidatos en lugar de las $6\cdot3=18$ operaciones de la fuerza
+bruta; la diferencia crece de forma exponencial con $n$.
+
+\subsection{Algoritmo}
+
+Los subconjuntos se representan como máscaras de bits: el bit $j$ de un entero
+$S$ vale $1$ si la tarea $j$ está en $S$. Si $S'\subset S$, entonces $S'<S$
+como entero, así que basta recorrer las máscaras en orden creciente para que
+todo $f(S\setminus\{j\})$ esté calculado antes de usarlo.
+
+\begin{algorithm}[h]
+\caption{Programación dinámica sobre subconjuntos}\label{alg:dp}
+\begin{algorithmic}[1]
+\Require tareas $(p_j,d_j,w_j)$, $j=0,\dots,n-1$
+\Ensure orden óptimo y su costo
+\State $f[0]\gets0$
+\For{$S\gets1$ \textbf{hasta} $2^n-1$}
+  \State $P\gets\sum_{j\in S}p_j$; \quad $f[S]\gets\infty$
+  \For{cada $j\in S$}
+    \State $c\gets f[S\setminus\{j\}]+w_j\max(0,P-d_j)$
+    \If{$c<f[S]$} $f[S]\gets c$;\; $u[S]\gets j$ \EndIf
+  \EndFor
+\EndFor
+\State $S\gets2^n-1$;\; $\pi\gets()$
+\While{$S\ne0$}
+  \State anteponer $u[S]$ a $\pi$;\; $S\gets S\setminus\{u[S]\}$
+\EndWhile
+\State \Return $(\pi,\,f[2^n-1])$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Complejidad}
+
+\paragraph{Tiempo.} Hay $2^n$ estados; para cada uno se calcula $P(S)$ en
+$O(n)$ y se prueban hasta $n$ candidatos en $O(1)$ cada uno. Total
+\[
+T(n)=\Theta(2^n\cdot n).
+\]
+Más precisamente, el número de candidatos es
+$\sum_{S}|S|=\sum_{k=0}^{n}k\binom{n}{k}=n\,2^{n-1}$. La reconstrucción cuesta
+$O(n)$.
+
+\paragraph{Espacio.} Se guardan $f[S]$ (entero de 64 bits) y $u[S]$ (entero de
+8 bits) para cada $S$: $\Theta(2^n)$, unos $9\cdot2^n$ bytes. Para $n=24$ son
+cerca de 150\,MB, que se tomó como límite práctico de la implementación.
+
+\paragraph{Comparación con la fuerza bruta.} La fuerza bruta cuesta
+$\Theta(n\cdot n!)$. El cociente
+\[
+\frac{n\cdot n!}{n\cdot2^n}=\frac{n!}{2^n}=\prod_{k=1}^{n}\frac{k}{2}
+\]
+crece sin cota: para $n=10$ es $\approx3.5\times10^3$ y para $n=20$ es
+$\approx2.3\times10^{12}$. La programación dinámica sigue siendo exponencial,
+como se espera de un problema fuertemente NP-difícil, pero mueve la frontera
+de lo resoluble de $n\approx11$ a $n\approx25$.
+
+%=======================================================================
+\section{Solución mediante enfoques voraces}
+%=======================================================================
+
+Un algoritmo voraz construye la programación eligiendo en cada paso la tarea
+que \emph{parece} mejor según un criterio local, sin reconsiderar decisiones.
+Se implementaron tres criterios. Los dos primeros son reglas clásicas que
+ignoran uno de los parámetros; el tercero, WMDD, combina ambos y es el voraz
+principal de este trabajo. En todos los casos los empates se resuelven a favor
+de la tarea de menor índice.
+
+\subsection{EDD: fecha límite más cercana}
+
+\textbf{Criterio:} ordenar por $d_j$ creciente. \textbf{Complejidad:}
+$O(n\log n)$.
+
+\textbf{Justificación:} atender primero lo que vence primero. Por el teorema de
+Jackson (1955), EDD minimiza el retraso \emph{máximo}; en particular, si
+existe una programación en la que ninguna tarea se retrasa, EDD la encuentra.
+
+\textbf{Limitación:} ignora por completo los pesos $w_j$ y las duraciones, así
+que una tarea barata con fecha cercana puede desplazar a una muy costosa.
+
+\subsection{WSPT: regla de Smith}\label{sec:wspt}
+
+\textbf{Criterio:} ordenar por $w_j/p_j$ decreciente, es decir, mayor
+penalización por unidad de tiempo ocupado. \textbf{Complejidad:}
+$O(n\log n)$.
+
+\begin{proposicion}[Intercambio adyacente]\label{prop:intercambio}
+Sean $i,j$ tareas consecutivas que empiezan en el instante $t$, ambas tardías
+en cualquiera de sus dos órdenes, lo que ocurre si $d_i\le t+p_i$ y
+$d_j\le t+p_j$. Entonces conviene poner $i$ antes que $j$ si y solo si
+$w_i/p_i\ge w_j/p_j$.
+\end{proposicion}
+
+\begin{proof}
+Si ambas son tardías, $T=C-d$. Con $i$ primero, el costo del par es
+$w_i(t+p_i-d_i)+w_j(t+p_i+p_j-d_j)$; con $j$ primero,
+$w_j(t+p_j-d_j)+w_i(t+p_j+p_i-d_i)$. La resta (primero menos segundo) es
+$w_jp_i-w_ip_j$, que es $\le0$ si y solo si $w_i/p_i\ge w_j/p_j$. El resto de
+la programación no cambia porque el par termina en $t+p_i+p_j$ en ambos casos.
+\end{proof}
+
+\begin{observacion}
+Si todas las fechas límite son $0$, todas las tareas son tardías y el objetivo
+se vuelve $\sum w_jC_j-\text{cte}$. Aplicando la
+Proposición~\ref{prop:intercambio} a cualquier par adyacente fuera del orden
+WSPT se demuestra que WSPT es \emph{óptimo} en ese caso (Smith, 1956). Por eso
+el problema sin fechas límite está en P.
+\end{observacion}
+
+\textbf{Limitación:} ignora las fechas límite; puede adelantar una tarea con
+mucha holgura y atrasar otra que estaba por vencer.
+
+\subsection{WMDD: fecha límite modificada ponderada}
+
+\textbf{Criterio:} en cada paso, con $t$ igual al tiempo ya ocupado, elegir la
+tarea pendiente que minimice
+\[
+\rho_j(t)=\frac{\max\big(p_j,\;d_j-t\big)}{w_j}.
+\]
+Las tareas con $w_j=0$ no generan costo, tienen prioridad $+\infty$ y van al
+final.
+
+\textbf{Justificación del diseño.} $\rho_j$ cambia de régimen según la
+holgura $d_j-t$ de cada tarea:
+\begin{itemize}
+  \item Si la tarea ya no puede terminar a tiempo ($d_j-t\le p_j$), entonces
+        $\rho_j=p_j/w_j$: es WSPT, que la Proposición~\ref{prop:intercambio}
+        justifica entre tareas tardías.
+  \item Si aún tiene holgura ($d_j-t>p_j$), entonces $\rho_j=(d_j-t)/w_j$: es
+        EDD ponderado, donde se adelanta lo que vence antes, ajustado por lo
+        que cuesta retrasarlo.
+\end{itemize}
+El criterio es \emph{dinámico}: como depende de $t$, debe recalcularse en cada
+paso. Por eso cuesta $O(n^2)$, con $n$ pasos y $n$ candidatos por paso. No se
+usan números de punto flotante: $a/w<a'/w'$ se compara como $a\,w'<a'\,w$, lo
+que con los límites de entrada ($a\le10^9$, $w\le10^6$) cabe en 64 bits.
+
+\subsection{¿Garantizan optimalidad?}
+
+\textbf{No.} Ningún voraz polinomial puede garantizarla: si alguno lo hiciera
+se tendría un algoritmo polinomial para un problema NP-difícil, y por tanto
+P\,=\,NP. Basta un contraejemplo concreto.
+
+\paragraph{Contraejemplo.} Sean las tareas
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+Tarea & 1 & 2 & 3 & 4\\
+\midrule
+$p_j$ & 4 & 5 & 6 & 4\\
+$d_j$ & 9 & 7 & 6 & 5\\
+$w_j$ & 5 & 3 & 3 & 2\\
+\bottomrule
+\end{tabular}
+\end{center}
+El óptimo, verificado por fuerza bruta y por programación dinámica, es
+$(2,1,3,4)$ con costo $55$: las tareas 2 y 1 terminan en $5$ y $9$, a tiempo, y
+3 y 4 se retrasan $9$ y $14$ unidades ($3\cdot9+2\cdot14=55$).
+
+WMDD en $t=0$ calcula $\rho=(9/5,\,7/3,\,6/3,\,5/2)=(1.8,\,2.33,\,2,\,2.5)$ y
+elige la tarea 1, por su peso alto. Pero la tarea 1 tenía holgura de sobra:
+podía ir segunda y aun así terminar en $9=d_1$. Elegirla primero retrasa la 2
+en $2$ unidades. El resultado es $(1,2,3,4)$ con costo $61$, una brecha de
+$10.9$\,\%. WSPT produce el mismo orden (61) y EDD obtiene $(4,3,2,1)$ con
+costo $86$ ($+56.4$\,\%).
+
+El error tiene una causa clara: el voraz mira solo el instante actual y no
+\emph{prevé} que retrasar una tarea con holgura no cuesta nada. La
+programación dinámica sí lo considera, porque evalúa todos los conjuntos
+posibles de tareas previas.
+
+\subsection{Comparación conceptual con la programación dinámica}
+
+\begin{table}[h]
+\centering
+\caption{Programación dinámica frente a voraz.}\label{tab:comp}
+\small
+\setlength{\tabcolsep}{3pt}\begin{tabular}{>{\raggedright\arraybackslash}p{1.8cm}>{\raggedright\arraybackslash}p{2.8cm}>{\raggedright\arraybackslash}p{2.8cm}}
+\toprule
+ & Programación dinámica & Voraz (WMDD)\\
+\midrule
+Decisiones & considera todas las tareas que pueden ir de últimas en cada conjunto & una elección local e irrevocable por paso\\
+Optimalidad & garantizada (teorema de corrección) & no garantizada (contraejemplo)\\
+Tiempo & $\Theta(2^n n)$ & $\Theta(n^2)$\\
+Espacio & $\Theta(2^n)$ & $\Theta(n)$\\
+Tamaño práctico & $n\le24$ & miles de tareas\\
+Principio & subestructura óptima y subproblemas superpuestos & criterio de intercambio local (Prop.~\ref{prop:intercambio})\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Ambos enfoques parten de observaciones estructurales distintas. La
+programación dinámica aprovecha que el costo futuro depende solo del
+\emph{conjunto} ya programado, y por eso puede explorar todas las opciones sin
+repetir trabajo. El voraz aprovecha que, entre dos tareas tardías adyacentes,
+el orden correcto lo decide una razón local ($w/p$). Esa regla es exacta para
+pares de tareas tardías, pero no captura la interacción global entre holguras,
+que es justamente lo que hace difícil al problema.
+
+%=======================================================================
+\section{Implementación}
+%=======================================================================
+
+Ambas soluciones se implementaron en C++17, sin bibliotecas externas, y se
+compilan con \texttt{g++ -O2} mediante un \texttt{Makefile}. El código está
+organizado en módulos pequeños con una interfaz común: cada algoritmo recibe el
+vector de tareas y devuelve un \texttt{Resultado} con el orden (identificadores
+$1..n$) y su costo.
+
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+Archivo & Responsabilidad\\
+\midrule
+\texttt{entrada.cpp} & lectura y validación de instancias\\
+\texttt{costo.cpp} & costo y detalle de un orden\\
+\texttt{dp.cpp} & programación dinámica\\
+\texttt{fuerza\_bruta.cpp} & verificación por enumeración\\
+\texttt{voraz.cpp} & EDD, WSPT y WMDD\\
+\texttt{generacion.cpp} & instancias aleatorias\\
+\texttt{main.cpp} & programa \texttt{tareas}\\
+\texttt{experimentos.cpp} & mediciones en CSV\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Decisiones de implementación relevantes.}
+\begin{itemize}
+  \item \textbf{Máscaras de 32 bits} para los subconjuntos y recorrido en
+        orden creciente, lo que evita la recursión y la memoización con mapas.
+        $P(S)$ se calcula en el mismo ciclo que los candidatos, sin un
+        arreglo adicional.
+  \item \textbf{Arreglo de predecesores de 8 bits} ($u[S]\in[0,23]$), que
+        reduce la memoria de $16$ a $9$ bytes por estado.
+  \item \textbf{Aritmética entera exacta}: costos en \texttt{long long} y
+        comparaciones de cocientes por producto cruzado. Los límites de
+        entrada ($n\le1000$, $p,w\le10^6$, $d\le10^9$) garantizan que no haya
+        desbordamiento; el peor caso, $\approx5\times10^{17}$, se verifica en
+        las pruebas.
+  \item \textbf{Validación de la entrada} con mensajes que indican la línea
+        del error. Se toleran comentarios, líneas vacías, fines de línea de
+        Windows y la marca BOM, para poder usar archivos preparados en otro
+        sistema durante la sustentación.
+  \item \textbf{Límites explícitos}: la fuerza bruta rechaza $n>10$ y la
+        programación dinámica $n>24$ con un mensaje claro, en vez de
+        agotar la memoria.
+\end{itemize}
+
+\paragraph{Uso.} \texttt{./tareas archivo.txt [--algoritmo dp|fb|edd|wspt|wmdd|todos] [--detalle]}
+muestra para cada algoritmo el orden, el costo y el tiempo y, con
+\texttt{--detalle}, la tabla $C_j,T_j,w_jT_j$ de cada tarea. Al final reporta
+la brecha de cada voraz frente al óptimo. El archivo de entrada contiene $n$ y
+luego una línea $p_j\;d_j\;w_j$ por tarea. \texttt{./generador n semilla} crea
+instancias reproducibles y \texttt{./experimentos} produce los datos de la
+Sección~\ref{sec:pruebas}.
+
+%=======================================================================
+\section{Pruebas y resultados}\label{sec:pruebas}
+%=======================================================================
+
+\subsection{Pruebas de corrección}
+
+El conjunto automático (\texttt{make test}, 2558 comprobaciones) incluye:
+\begin{itemize}
+  \item Costos calculados a mano (ejemplo A, B, C y su detalle).
+  \item \textbf{Programación dinámica igual a fuerza bruta} en 300 instancias
+        aleatorias con $n\le8$: el costo coincide en todas.
+  \item Todo orden devuelto es una permutación de $1..n$ y su costo
+        recalculado coincide con el reportado.
+  \item Ningún voraz obtiene un costo menor que el de la programación
+        dinámica, y existe al menos una instancia donde WMDD no es óptimo.
+  \item Casos borde: $n=0$, pesos nulos, valores máximos, límites de $n$ y
+        archivos mal formados, que deben terminar con código de error 1.
+\end{itemize}
+
+\subsection{Diseño experimental}
+
+Se generaron instancias con $p_j,w_j\sim U\{1,\dots,10\}$ y
+$d_j\sim U\{0,\dots,\lfloor\alpha\sum p_i\rfloor\}$, donde $\alpha$ controla
+la \emph{holgura} de las fechas límite: alta ($\alpha=1$), media ($0.6$) y baja
+($0.3$, la mayoría de las tareas termina tarde). Para cada $n\in\{4,\dots,24\}$
+se usaron 5 semillas y las 3 holguras, es decir $21\cdot5\cdot3=315$
+instancias. La fuerza bruta solo se ejecutó con $n\le10$. Los tiempos se
+midieron con \texttt{std::chrono::steady\_clock}, en un solo hilo, en un
+computador con Linux.
+
+\subsection{Tiempo de ejecución}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=\columnwidth, height=6.2cm,
+  ymode=log, xlabel={$n$ (número de tareas)}, ylabel={tiempo promedio (ms)},
+  xmin=3.5, xmax=24.5, legend pos=south east, legend style={font=\small},
+  grid=major, grid style={gray!25}, tick label style={font=\small}]
+\addplot[mark=*,mark size=1.5pt,blue!70!black,thick] coordinates {
+ (4,0.0004)(5,0.0009)(6,0.0024)(7,0.0057)(8,0.0149)(9,0.0331)(10,0.0701)
+ (11,0.1456)(12,0.3043)(13,0.6292)(14,1.343)(15,2.8149)(16,5.8534)
+ (17,12.2872)(18,26.1342)(19,53.6211)(20,111.8425)(21,229.9854)
+ (22,474.7733)(23,983.2248)(24,1987.3369)};
+\addlegendentry{Prog. dinámica}
+\addplot[mark=square*,mark size=1.5pt,red!75!black,thick] coordinates {
+ (4,0.0012)(5,0.007)(6,0.0401)(7,0.2885)(8,2.3375)(9,24.9574)(10,268.3976)};
+\addlegendentry{Fuerza bruta}
+\addplot[mark=triangle*,mark size=1.8pt,green!50!black,thick] coordinates {
+ (4,0.0002)(6,0.0003)(8,0.0004)(10,0.0008)(12,0.0007)(14,0.0009)
+ (16,0.0011)(18,0.0028)(20,0.0019)(22,0.0018)(24,0.0023)};
+\addlegendentry{Voraz WMDD}
+\end{axis}
+\end{tikzpicture}
+\caption{Tiempo promedio por instancia (escala logarítmica).}\label{fig:tiempo}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Tiempo promedio (ms) y razón de crecimiento al aumentar $n$ en 1.}\label{tab:tiempo}
+\small
+\begin{tabular}{rrrrr}
+\toprule
+$n$ & PD & razón & FB & razón\\
+\midrule
+7 & 0.0057 & 2.4 & 0.289 & 7.2\\
+8 & 0.0149 & 2.6 & 2.34 & 8.1\\
+9 & 0.0331 & 2.2 & 25.0 & 10.7\\
+10 & 0.0701 & 2.1 & 268.4 & 10.8\\
+\midrule
+20 & 111.8 & 2.09 & -- & --\\
+21 & 230.0 & 2.06 & -- & --\\
+22 & 474.8 & 2.06 & -- & --\\
+23 & 983.2 & 2.07 & -- & --\\
+24 & 1987.3 & 2.02 & -- & --\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La Figura~\ref{fig:tiempo} y la Tabla~\ref{tab:tiempo} confirman el análisis
+asintótico:
+\begin{itemize}
+  \item En escala logarítmica, la programación dinámica es casi una recta: el
+        tiempo \textbf{se multiplica por $\approx2.05$} con cada tarea
+        adicional. El modelo $\Theta(2^n n)$ predice
+        $2(n+1)/n\approx2.09$ para $n\approx22$.
+  \item La fuerza bruta se multiplica por $\approx n+1$, como predice
+        $\Theta(n\cdot n!)$, y su curva se curva hacia arriba. Con $n=10$ ya es
+        unas 3800 veces más lenta que la programación dinámica; extrapolando,
+        con $n=14$ tardaría horas.
+  \item Los voraces se mantienen por debajo de $0.003$\,ms en todo el rango;
+        a esta escala el tiempo está dominado por costos fijos (reserva de
+        memoria, medición), no por el $n^2$.
+  \item Con $n=24$ la programación dinámica tarda 2\,s y usa cerca de
+        150\,MB. Cada tarea extra duplica ambos, así que $n\approx28$ ya
+        requeriría más de 2\,GB.
+\end{itemize}
+
+\subsection{Calidad de los voraces}
+
+Se define la brecha de un voraz como
+\[
+\text{brecha}=100\cdot\frac{\costo_{\text{voraz}}-\costo_{\text{óptimo}}}{\costo_{\text{óptimo}}}.
+\]
+
+\begin{table}[h]
+\centering
+\caption{Brecha (\%) de cada voraz frente al óptimo, 105 instancias por holgura.}\label{tab:brecha}
+\small\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrrr}
+\toprule
+Voraz & Holgura & media & mediana & máx. & óptimos\\
+\midrule
+EDD  & alta  & 111.1 & 84.5 & 450.4 & 10\\
+     & media & 102.0 & 96.3 & 255.1 & 1\\
+     & baja  & 72.2  & 73.0 & 170.9 & 1\\
+\midrule
+WSPT & alta  & 495.7 & 227.1 & 10500 & 3\\
+     & media & 30.2  & 29.1  & 84.2  & 7\\
+     & baja  & 4.2   & 4.0   & 10.8  & 20\\
+\midrule
+WMDD & alta  & 115.9 & 17.6 & 7500  & 12\\
+     & media & \textbf{2.0} & \textbf{1.2} & 13.1 & 27\\
+     & baja  & \textbf{0.6} & \textbf{0.2} & 4.8  & 44\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+De la Tabla~\ref{tab:brecha} se concluye:
+\begin{itemize}
+  \item \textbf{WMDD domina} a los otros dos voraces en todas las holguras. Con
+        holgura media y baja su brecha mediana es de $1.2$\,\% y $0.2$\,\%, y
+        alcanza el óptimo exacto en 71 de 210 instancias.
+  \item \textbf{WSPT mejora a medida que la holgura baja}: de $227$\,\% a
+        $4$\,\% de mediana. Es lo que predice la teoría, porque cuando casi
+        todas las tareas son tardías la Proposición~\ref{prop:intercambio}
+        se aplica a casi todos los pares.
+  \item \textbf{EDD es el peor} cuando hay retrasos, porque ignora los pesos.
+        Su brecha mediana nunca baja de $73$\,\%.
+  \item \textbf{Con holgura alta los porcentajes engañan}: el costo óptimo
+        suele ser muy pequeño (pocas tareas tardías), y una diferencia
+        absoluta de pocas unidades produce brechas de miles por ciento (el
+        máximo de 7500\,\% de WMDD es una instancia con óptimo $1$ donde el voraz obtiene $76$). La
+        mediana es una medida más representativa que la media en este
+        régimen.
+\end{itemize}
+
+\subsection{Comportamiento en función del tamaño de la entrada}
+
+\begin{itemize}
+  \item La \textbf{programación dinámica} es exacta para cualquier $n$, pero su
+        costo crece exponencialmente. El límite es la memoria más que el
+        tiempo.
+  \item La \textbf{brecha del voraz} no muestra una tendencia monótona con
+        $n$: la media de WMDD oscila entre $4$\,\% y $30$\,\% para
+        $n\ge9$, salvo un pico en $n=15$. Depende mucho más de la estructura de la instancia (la
+        holgura) que de su tamaño. Los picos aislados, como $n=8$ o $n=15$,
+        vienen de instancias de holgura alta con óptimo cercano a cero.
+  \item Sí aumenta con $n$ la \emph{probabilidad} de no dar el óptimo: con
+        $n=4$ WMDD es óptimo en 13 de 15 instancias, mientras que con
+        $n\ge20$ solo lo fue en 5 de 75, porque hay más pares de tareas donde una
+        decisión local puede equivocarse.
+\end{itemize}
+
+%=======================================================================
+\section{Análisis del proceso}
+%=======================================================================
+
+\paragraph{Cómo se llegó a cada modelo.} El primer paso fue precisar el
+problema. El enunciado admitía dos lecturas (penalización proporcional al
+retraso o multa fija), y se eligió la proporcional por ser la más literal. Se
+comprobó además que sin fechas límite el problema sería polinomial, lo que
+justificó incluirlas en el modelo.
+
+Para la programación dinámica se partió de la fuerza bruta y se buscó qué parte
+del prefijo de un orden afecta al resto. Al notar que la última tarea de un
+conjunto siempre termina en $P(S)$ (Lema~\ref{lema:fin}), el estado natural
+resultó ser el conjunto y no el orden. Se descartó un estado indexado por el
+tiempo, $f(k,t)$, porque no permite saber qué tareas faltan; esa es la razón
+de fondo por la que no hay solución pseudo-polinomial.
+
+Para el voraz se analizó primero por qué fallan las reglas simples: EDD
+ignora $w$ y WSPT ignora $d$. El argumento de intercambio
+(Proposición~\ref{prop:intercambio}) mostró que WSPT es correcto entre tareas
+tardías, y eso llevó a un criterio que se comporta como WSPT para las tareas
+tardías y como EDD ponderado para las que aún tienen holgura: WMDD.
+
+\paragraph{Dificultades encontradas.}
+\begin{itemize}
+  \item \textbf{Ambigüedad del enunciado}, resuelta con el análisis de las
+        variantes y de su complejidad.
+  \item \textbf{Memoria de la programación dinámica}: guardar costo,
+        predecesor y $P(S)$ en arreglos de 64 bits costaría 24 bytes por
+        estado. Por eso se usó un predecesor de 8 bits y se calculó $P(S)$
+        dentro del ciclo: 9 bytes por estado, lo que permite llegar a $n=24$.
+  \item \textbf{Archivos de entrada de otros sistemas}: un archivo guardado
+        en Windows como UTF-8 con BOM era rechazado con un error confuso. Se
+        detectó en la revisión del código y se corrigió con una prueba que lo
+        cubre.
+  \item \textbf{Tareas con $w_j=0$}: su prioridad en WMDD implicaría dividir
+        por cero. Se definió prioridad infinita (no cuesta retrasarlas) y se
+        evitó la división con productos cruzados.
+  \item \textbf{Verificar la optimalidad}: no basta con probar algunos ejemplos
+        a mano. La fuerza bruta se usó como oráculo sobre cientos de instancias
+        aleatorias.
+  \item \textbf{Interpretar la brecha}: la media en porcentaje resultó
+        engañosa con óptimos pequeños, y se complementó con la mediana.
+\end{itemize}
+
+\paragraph{Decisiones de diseño.} C++ por su control de memoria y su
+eficiencia en los ciclos de la programación dinámica; máscaras de bits en lugar
+de conjuntos explícitos; los mismos módulos para el programa, las pruebas y
+los experimentos; instancias generadas con semilla fija para que todos los
+resultados sean reproducibles.
+
+%=======================================================================
+\section{Conclusiones}
+%=======================================================================
+
+\begin{enumerate}
+  \item \textbf{La programación dinámica no elimina la dificultad, la
+        reorganiza.} Pasar de $n!$ órdenes a $2^n$ conjuntos es una mejora
+        enorme, del orden de $10^{12}$ para $n=20$, pero sigue siendo
+        exponencial. Esto es coherente con que el problema sea fuertemente
+        NP-difícil: no cabe esperar una tabla polinomial ni pseudo-polinomial.
+        La ganancia proviene de identificar la información \emph{mínima}
+        suficiente sobre el pasado, el conjunto y no el orden.
+  \item \textbf{La frontera práctica la fija la memoria.} El tiempo se duplica
+        y la memoria también con cada tarea; con $n=24$ la memoria se acerca
+        al límite razonable antes que el tiempo. En la práctica, el análisis de
+        espacio es tan importante como el de tiempo.
+  \item \textbf{Un voraz es tan bueno como la estructura que explota.} WSPT es
+        exacto cuando todas las tareas son tardías y empeora cuando no lo son;
+        WMDD funciona bien porque su criterio cambia de régimen siguiendo esa
+        misma estructura. La calidad de un voraz no es una propiedad fija: depende
+        de la distribución de las instancias.
+  \item \textbf{La falta de optimalidad es estructural, no un defecto de
+        implementación.} El contraejemplo muestra el mecanismo: una decisión
+        local no puede prever que retrasar una tarea con holgura es gratis.
+        Un voraz que siempre acertara probaría P\,=\,NP.
+  \item \textbf{Los dos enfoques se complementan.} La programación dinámica
+        sirve como referencia exacta para medir los voraces, y estos resuelven
+        en microsegundos instancias que la programación dinámica no puede
+        abordar. Una extensión natural sería combinarlos: usar WMDD como cota
+        superior inicial en un \emph{branch and bound}, o como punto de partida
+        de una búsqueda local.
+  \item \textbf{Medir bien es parte del análisis.} La brecha porcentual con
+        óptimos cercanos a cero produjo cifras engañosas. Reportar medianas y
+        separar los resultados por tipo de instancia cambió las conclusiones
+        respecto a mirar solo promedios globales.
+\end{enumerate}
+
+\begin{thebibliography}{9}
+\small
+\bibitem{lawler} E.~L. Lawler. A ``pseudopolynomial'' algorithm for sequencing
+jobs to minimize total tardiness. \emph{Annals of Discrete Mathematics}, 1:331--342, 1977.
+\bibitem{lenstra} J.~K. Lenstra, A.~H.~G. Rinnooy Kan y P. Brucker. Complexity of
+machine scheduling problems. \emph{Annals of Discrete Mathematics}, 1:343--362, 1977.
+\bibitem{smith} W.~E. Smith. Various optimizers for single-stage production.
+\emph{Naval Research Logistics Quarterly}, 3:59--66, 1956.
+\bibitem{jackson} J.~R. Jackson. Scheduling a production line to minimize maximum
+tardiness. Research Report 43, UCLA, 1955.
+\bibitem{heldkarp} M. Held y R.~M. Karp. A dynamic programming approach to
+sequencing problems. \emph{Journal of SIAM}, 10(1):196--210, 1962.
+\bibitem{pinedo} M.~L. Pinedo. \emph{Scheduling: Theory, Algorithms, and Systems}.
+Springer, 5.ª ed., 2016.
+\bibitem{clrs} T.~H. Cormen, C.~E. Leiserson, R.~L. Rivest y C. Stein.
+\emph{Introduction to Algorithms}. MIT Press, 4.ª ed., 2022.
+\end{thebibliography}
+
+\end{document}
