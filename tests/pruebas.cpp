@@ -1,14 +1,18 @@
 // Pruebas automaticas del proyecto (sin librerias externas).
 // Ejecutar con: make test
 
+#include <algorithm>
 #include <iostream>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "costo.h"
+#include "dp.h"
 #include "entrada.h"
+#include "fuerza_bruta.h"
 #include "tarea.h"
 
 static int comprobaciones = 0;
@@ -83,12 +87,87 @@ static void prueba_lectura_errores() {
     CHECK(lectura_falla("1001\n"));
 }
 
+// Instancias aleatorias pequenas, siempre las mismas (semilla fija).
+static std::vector<std::vector<Tarea>> instancias_aleatorias() {
+    std::mt19937 gen(12345);
+    std::vector<std::vector<Tarea>> lista;
+    for (int k = 0; k < 300; ++k) {
+        int n = std::uniform_int_distribution<int>(1, 8)(gen);
+        std::vector<Tarea> t;
+        long long suma = 0;
+        for (int i = 1; i <= n; ++i) {
+            long long p = std::uniform_int_distribution<long long>(1, 10)(gen);
+            long long w = std::uniform_int_distribution<long long>(1, 10)(gen);
+            t.push_back({i, p, 0, w});
+            suma += p;
+        }
+        for (Tarea& x : t) x.d = std::uniform_int_distribution<long long>(0, suma)(gen);
+        lista.push_back(t);
+    }
+    return lista;
+}
+
+// El orden es una permutacion de 1..n y su costo coincide con el reportado.
+static bool resultado_valido(const std::vector<Tarea>& t, const Resultado& r) {
+    std::vector<int> ids = r.orden;
+    std::sort(ids.begin(), ids.end());
+    for (size_t i = 0; i < ids.size(); ++i) {
+        if (ids[i] != (int)i + 1) return false;
+    }
+    return ids.size() == t.size() && calcular_costo(t, r.orden) == r.costo;
+}
+
+static std::vector<Tarea> tareas_iguales(int n) {
+    std::vector<Tarea> t;
+    for (int i = 1; i <= n; ++i) t.push_back({i, 1, 0, 1});
+    return t;
+}
+
+template <class F>
+static bool lanza_invalid_argument(F f) {
+    try {
+        f();
+    } catch (const std::invalid_argument&) {
+        return true;
+    }
+    return false;
+}
+
+static void prueba_dp_ejemplo() {
+    auto t = ejemplo_abc();
+    Resultado dp = resolver_dp(t);
+    Resultado fb = resolver_fuerza_bruta(t);
+    CHECK(dp.costo == 5);
+    CHECK(fb.costo == 5);
+    CHECK(resultado_valido(t, dp));
+    CHECK(resultado_valido(t, fb));
+}
+
+static void prueba_dp_igual_fb() {
+    for (const auto& t : instancias_aleatorias()) {
+        Resultado dp = resolver_dp(t);
+        CHECK(dp.costo == resolver_fuerza_bruta(t).costo);
+        CHECK(resultado_valido(t, dp));
+    }
+}
+
+static void prueba_limites() {
+    CHECK(lanza_invalid_argument([] { resolver_dp(tareas_iguales(MAX_N_DP + 1)); }));
+    CHECK(lanza_invalid_argument([] { resolver_fuerza_bruta(tareas_iguales(MAX_N_FB + 1)); }));
+    CHECK(resolver_dp({}).costo == 0);
+    CHECK(resolver_fuerza_bruta({}).costo == 0);
+    CHECK(resolver_dp({}).orden.empty());
+}
+
 int main() {
     prueba_costo_ejemplo();
     prueba_detalle();
     prueba_lectura_valida();
     prueba_lectura_vacia();
     prueba_lectura_errores();
+    prueba_dp_ejemplo();
+    prueba_dp_igual_fb();
+    prueba_limites();
 
     if (fallos > 0) {
         std::cerr << fallos << " de " << comprobaciones << " comprobaciones fallaron\n";

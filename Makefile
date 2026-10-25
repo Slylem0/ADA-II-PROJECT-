@@ -2,7 +2,7 @@ CXX      = g++
 CXXFLAGS = -std=c++17 -O2 -Wall -Wextra -Isrc
 
 # Modulos compartidos por todos los ejecutables
-LIB_SRCS = src/entrada.cpp src/costo.cpp
+LIB_SRCS = src/entrada.cpp src/costo.cpp src/fuerza_bruta.cpp src/dp.cpp
 LIB_OBJS = $(LIB_SRCS:src/%.cpp=build/%.o)
 HEADERS  = $(wildcard src/*.h)
 
