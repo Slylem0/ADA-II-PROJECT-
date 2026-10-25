@@ -14,6 +14,7 @@
 #include "entrada.h"
 #include "fuerza_bruta.h"
 #include "tarea.h"
+#include "voraz.h"
 
 static int comprobaciones = 0;
 static int fallos = 0;
@@ -159,6 +160,57 @@ static void prueba_limites() {
     CHECK(resolver_dp({}).orden.empty());
 }
 
+static void prueba_edd_orden() {
+    std::vector<Tarea> t = {{1, 1, 5, 1}, {2, 1, 2, 1}, {3, 1, 9, 1}};
+    CHECK(resolver_edd(t).orden == std::vector<int>({2, 1, 3}));
+}
+
+static void prueba_wspt_orden() {
+    std::vector<Tarea> t = {{1, 2, 0, 1}, {2, 1, 0, 3}, {3, 4, 0, 4}};
+    CHECK(resolver_wspt(t).orden == std::vector<int>({2, 3, 1}));
+}
+
+static void prueba_wmdd_orden() {
+    Resultado r = resolver_wmdd(ejemplo_abc());
+    CHECK(r.orden == std::vector<int>({2, 1, 3}));
+    CHECK(r.costo == 5);
+}
+
+static void prueba_voraz_cota() {
+    for (const auto& t : instancias_aleatorias()) {
+        long long optimo = resolver_dp(t).costo;
+        for (const Resultado& r : {resolver_edd(t), resolver_wspt(t), resolver_wmdd(t)}) {
+            CHECK(resultado_valido(t, r));
+            CHECK(r.costo >= optimo);
+        }
+    }
+}
+
+static void prueba_voraz_existe_suboptimo() {
+    bool encontrado = false;
+    for (const auto& t : instancias_aleatorias()) {
+        if (resolver_wmdd(t).costo > resolver_dp(t).costo) encontrado = true;
+    }
+    CHECK(encontrado);
+}
+
+static void prueba_pesos_cero() {
+    std::vector<Tarea> t = {{1, 2, 0, 0}, {2, 3, 0, 0}, {3, 1, 0, 0}};
+    CHECK(resolver_dp(t).costo == 0);
+    CHECK(resolver_edd(t).costo == 0);
+    CHECK(resolver_wspt(t).costo == 0);
+    CHECK(resolver_wmdd(t).costo == 0);
+    CHECK(resultado_valido(t, resolver_wmdd(t)));
+}
+
+static void prueba_valores_maximos() {
+    std::vector<Tarea> t;
+    for (int i = 1; i <= 1000; ++i) t.push_back({i, 1000000, 0, 1000000});
+    const long long esperado = 1000000LL * 1000000LL * (1000LL * 1001 / 2);
+    CHECK(resolver_wmdd(t).costo == esperado);
+    CHECK(resolver_wspt(t).costo == esperado);
+}
+
 int main() {
     prueba_costo_ejemplo();
     prueba_detalle();
@@ -168,6 +220,13 @@ int main() {
     prueba_dp_ejemplo();
     prueba_dp_igual_fb();
     prueba_limites();
+    prueba_edd_orden();
+    prueba_wspt_orden();
+    prueba_wmdd_orden();
+    prueba_voraz_cota();
+    prueba_voraz_existe_suboptimo();
+    prueba_pesos_cero();
+    prueba_valores_maximos();
 
     if (fallos > 0) {
         std::cerr << fallos << " de " << comprobaciones << " comprobaciones fallaron\n";
