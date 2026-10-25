@@ -1,0 +1,5 @@
+# Ejemplo del informe: A, B y C (p d w)
+3
+3 4 2
+2 2 5
+4 6 1

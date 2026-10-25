@@ -1,0 +1,6 @@
+# Instancia donde los tres voraces no encuentran el optimo (optimo = 55)
+4
+4 9 5
+5 7 3
+6 6 3
+4 5 2

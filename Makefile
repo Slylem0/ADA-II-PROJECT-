@@ -8,7 +8,7 @@ HEADERS  = $(wildcard src/*.h)
 
 .PHONY: all test clean
 
-all: pruebas
+all: tareas pruebas
 
 build/%.o: src/%.cpp $(HEADERS)
 	@mkdir -p build
@@ -17,8 +17,20 @@ build/%.o: src/%.cpp $(HEADERS)
 pruebas: tests/pruebas.cpp $(LIB_OBJS) $(HEADERS)
 	$(CXX) $(CXXFLAGS) tests/pruebas.cpp $(LIB_OBJS) -o $@
 
-test: pruebas
+tareas: src/main.cpp $(LIB_OBJS) $(HEADERS)
+	$(CXX) $(CXXFLAGS) src/main.cpp $(LIB_OBJS) -o $@
+
+test: pruebas tareas
 	./pruebas
+	@# Pruebas del ejecutable tareas
+	./tareas ejemplos/ejemplo_basico.txt --algoritmo dp | grep -q "Costo total: 5"
+	./tareas --algoritmo dp < ejemplos/voraz_no_optimo.txt | grep -q "Costo total: 55"
+	printf '2\n1 1 1\n' | ./tareas > /dev/null 2>&1; test $$? -eq 1
+	./tareas no_existe.txt > /dev/null 2>&1; test $$? -eq 1
+	./tareas ejemplos/ejemplo_basico.txt --opcion-rara > /dev/null 2>&1; test $$? -eq 1
+	{ echo 25; for i in $$(seq 25); do echo "1 0 1"; done; } | ./tareas --algoritmo dp > /dev/null 2>&1; test $$? -eq 1
+	{ echo 25; for i in $$(seq 25); do echo "1 0 1"; done; } | ./tareas | grep -q "Costo total"
+	@echo "OK (pruebas del ejecutable)"
 
 clean:
-	rm -rf build pruebas
+	rm -rf build pruebas tareas
