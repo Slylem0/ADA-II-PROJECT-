@@ -17,6 +17,8 @@ bool siguiente_linea(std::istream& in, std::string& linea, int& numero) {
     while (std::getline(in, linea)) {
         ++numero;
         if (!linea.empty() && linea.back() == '\r') linea.pop_back();
+        // Marca BOM de UTF-8 que algunos editores ponen al inicio del archivo
+        if (numero == 1 && linea.rfind("\xEF\xBB\xBF", 0) == 0) linea.erase(0, 3);
         size_t inicio = linea.find_first_not_of(" \t");
         if (inicio == std::string::npos || linea[inicio] == '#') continue;
         return true;

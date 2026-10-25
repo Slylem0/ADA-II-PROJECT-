@@ -72,6 +72,17 @@ static void prueba_lectura_valida() {
     CHECK(t[2].id == 3 && t[2].p == 4 && t[2].d == 6 && t[2].w == 1);
 }
 
+// Archivos guardados como "UTF-8 con BOM" (por ejemplo desde el Bloc de notas).
+static void prueba_lectura_bom() {
+    std::istringstream in("\xEF\xBB\xBF" "2\r\n1 0 1\r\n2 0 3\r\n");
+    try {
+        auto t = leer_instancia(in);
+        CHECK(t.size() == 2);
+    } catch (const std::runtime_error&) {
+        CHECK(false);
+    }
+}
+
 static void prueba_lectura_vacia() {
     std::istringstream in("0\n");
     auto t = leer_instancia(in);
@@ -247,6 +258,7 @@ int main() {
     prueba_costo_ejemplo();
     prueba_detalle();
     prueba_lectura_valida();
+    prueba_lectura_bom();
     prueba_lectura_vacia();
     prueba_lectura_errores();
     prueba_dp_ejemplo();
