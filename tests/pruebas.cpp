@@ -13,6 +13,7 @@
 #include "dp.h"
 #include "entrada.h"
 #include "fuerza_bruta.h"
+#include "generacion.h"
 #include "tarea.h"
 #include "voraz.h"
 
@@ -211,6 +212,37 @@ static void prueba_valores_maximos() {
     CHECK(resolver_wspt(t).costo == esperado);
 }
 
+static bool mismas_tareas(const std::vector<Tarea>& a, const std::vector<Tarea>& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (a[i].id != b[i].id || a[i].p != b[i].p || a[i].d != b[i].d || a[i].w != b[i].w)
+            return false;
+    }
+    return true;
+}
+
+static void prueba_generacion() {
+    for (Holgura h : {Holgura::Alta, Holgura::Media, Holgura::Baja}) {
+        auto a = generar_instancia(12, 7, h);
+        CHECK(mismas_tareas(a, generar_instancia(12, 7, h)));
+        CHECK(a.size() == 12);
+        long long suma = 0;
+        for (const Tarea& t : a) suma += t.p;
+        for (const Tarea& t : a) {
+            CHECK(t.p >= 1 && t.p <= 10);
+            CHECK(t.w >= 1 && t.w <= 10);
+            CHECK(t.d >= 0 && t.d <= suma);
+        }
+    }
+    CHECK(!mismas_tareas(generar_instancia(12, 7, Holgura::Media),
+                         generar_instancia(12, 8, Holgura::Media)));
+
+    auto t = generar_instancia(5, 1, Holgura::Baja);
+    std::stringstream ss;
+    escribir_instancia(ss, t);
+    CHECK(mismas_tareas(t, leer_instancia(ss)));
+}
+
 int main() {
     prueba_costo_ejemplo();
     prueba_detalle();
@@ -227,6 +259,7 @@ int main() {
     prueba_voraz_existe_suboptimo();
     prueba_pesos_cero();
     prueba_valores_maximos();
+    prueba_generacion();
 
     if (fallos > 0) {
         std::cerr << fallos << " de " << comprobaciones << " comprobaciones fallaron\n";
