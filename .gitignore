@@ -1,0 +1,13 @@
+# Herramientas y editores
+.claude/
+.kiro/
+.vscode/
+.idea/
+
+# Compilacion
+build/
+*.o
+tareas
+generador
+experimentos
+pruebas
