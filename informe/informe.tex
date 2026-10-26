@@ -463,7 +463,27 @@ paso. Por eso cuesta $O(n^2)$, con $n$ pasos y $n$ candidatos por paso. No se
 usan números de punto flotante: $a/w<a'/w'$ se compara como $a\,w'<a'\,w$, lo
 que con los límites de entrada ($a\le10^9$, $w\le10^6$) cabe en 64 bits.
 
-\subsection{¿Garantizan optimalidad?}
+\begin{algorithm}[h]
+\caption{Voraz WMDD}\label{alg:wmdd}
+\begin{algorithmic}[1]
+\Require tareas $(p_j,d_j,w_j)$, $j=1,\dots,n$
+\Ensure un orden $\pi$ (no necesariamente óptimo)
+\State $R\gets\{1,\dots,n\}$;\; $t\gets0$;\; $\pi\gets()$
+\While{$R\ne\varnothing$}
+  \State $k\gets\arg\min_{j\in R}\;\max(p_j,\,d_j-t)/w_j$
+  \Statex \hspace{\algorithmicindent}(empates: menor índice; $w_j=0$ cuenta como $+\infty$)
+  \State agregar $k$ al final de $\pi$
+  \State $t\gets t+p_k$;\; $R\gets R\setminus\{k\}$
+\EndWhile
+\State \Return $\pi$
+\end{algorithmic}
+\end{algorithm}
+
+La línea 3 es la única decisión del algoritmo y nunca se revisa después. Esa
+es la diferencia esencial con el Algoritmo~\ref{alg:dp}, que para cada conjunto
+compara \emph{todas} las tareas que podrían ir de últimas.
+
+\subsection{¿Garantizan optimalidad?}\label{sec:optimalidad}
 
 \textbf{No.} Ningún voraz polinomial puede garantizarla: si alguno lo hiciera
 se tendría un algoritmo polinomial para un problema NP-difícil, y por tanto
@@ -601,6 +621,54 @@ El conjunto automático (\texttt{make test}, 2558 comprobaciones) incluye:
   \item Casos borde: $n=0$, pesos nulos, valores máximos, límites de $n$ y
         archivos mal formados, que deben terminar con código de error 1.
 \end{itemize}
+
+\subsection{Casos diseñados por el equipo}
+
+Además de las pruebas automáticas, se diseñaron cuatro instancias
+(carpeta \texttt{ejemplos/}) para ilustrar comportamientos concretos. La
+Tabla~\ref{tab:casos} muestra el costo obtenido por cada algoritmo al ejecutar
+\texttt{./tareas} sobre cada archivo.
+
+\begin{table}[h]
+\centering
+\caption{Costo de cada algoritmo en los casos del equipo (FB = fuerza bruta,
+PD = programación dinámica; en negrita, los que alcanzan el óptimo).}\label{tab:casos}
+\small\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrr}
+\toprule
+Caso & $n$ & FB & PD & EDD & WSPT & WMDD\\
+\midrule
+\texttt{ejemplo\_basico}   & 3  & \textbf{5}  & \textbf{5}  & \textbf{5}  & \textbf{5}  & \textbf{5}\\
+\texttt{todas\_a\_tiempo}  & 4  & \textbf{0}  & \textbf{0}  & \textbf{0}  & \textbf{0}  & \textbf{0}\\
+\texttt{voraz\_no\_optimo} & 4  & \textbf{55} & \textbf{55} & 86 & 61 & 61\\
+\texttt{mediano\_15}       & 15 & --          & \textbf{798} & 1495 & 1028 & \textbf{798}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{itemize}
+  \item \textbf{\texttt{ejemplo\_basico}}: el ejemplo de la
+        Sección~\ref{sec:ejemplo}. Todos los algoritmos encuentran el orden
+        $(B,A,C)$: con pocas tareas y criterios alineados (B vence primero y
+        es la más costosa de retrasar), los voraces aciertan.
+  \item \textbf{\texttt{todas\_a\_tiempo}}: fechas límite holgadas, así que
+        cualquier orden cuesta $0$. Los algoritmos devuelven órdenes distintos,
+        todos óptimos: el óptimo no tiene por qué ser único.
+  \item \textbf{\texttt{voraz\_no\_optimo}}: el contraejemplo de la
+        Sección~\ref{sec:optimalidad}. La fuerza bruta devuelve $(2,1,3,4)$ y
+        la programación dinámica $(2,1,4,3)$, ambos de costo $55$: dos óptimos
+        distintos que cada algoritmo desempata de forma diferente.
+  \item \textbf{\texttt{mediano\_15}}: instancia aleatoria
+        (\texttt{./generador 15 2024}) fuera del alcance de la fuerza bruta
+        ($15!\approx1.3\times10^{12}$ órdenes). La programación dinámica la
+        resuelve en milisegundos y WMDD también llega al óptimo, mientras que
+        EDD casi duplica el costo ($+87$\,\%).
+\end{itemize}
+
+También se comprobó el manejo de entradas inválidas: un archivo con menos
+tareas de las declaradas, valores negativos o no numéricos, y la petición de
+programación dinámica con $n=25$ terminan con un mensaje que indica la causa
+y código de salida $1$.
 
 \subsection{Diseño experimental}
 
